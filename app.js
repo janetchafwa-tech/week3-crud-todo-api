@@ -1,8 +1,11 @@
 
 const express = require('express');
+const logger = require('./logger');
+const validateTodo = require('./validator');
 
 const app = express();
 
+app.use(logger);
 app.use(express.json());
 
 // Starting todo list
@@ -12,9 +15,15 @@ let todos = [
 ];
 
 // GET All – Read all todos
-app.get('/todos', (req, res) => {
-  res.status(200).json(todos);
+
+app.get('/todos', async (req, res, next) => {
+    try {
+    res.status(200).json(todos);    
+    } catch (error) {
+        next(error);
+    }
 });
+
 
 // GET Active – Bonus: read unfinished todos
 app.get('/todos/active', (req, res) => {
@@ -35,63 +44,29 @@ app.get('/todos/:id', (req, res) => {
 });
 
 // POST – Create a todo with validation
-app.post('/todos', (req, res) => {
-  const { task } = req.body;
 
-  if (typeof task !== 'string' || !task.trim()) {
-    return res.status(400).json({
-      error: 'Task field is required'
-    });
-  }
+app.post('/todos', validateTodo, async (req, res, next) => {
+    try {
+        const { task } = req.body;
 
-  const newId = todos.length
-    ? Math.max(...todos.map(todo => todo.id)) + 1
-    : 1;
+        const newId = todos.length
+            ? Math.max(...todos.map(todo => todo.id)) + 1
+            : 1;
 
-  const newTodo = {
-    id: newId,
-    task: task.trim(),
-    completed: false
-  };
+        const newTodo = {
+            id: newId,
+            task: task.trim(),
+            completed: false
+        };
 
-  todos.push(newTodo);
+        todos.push(newTodo);
 
-  res.status(201).json(newTodo);
+        res.status(201).json(newTodo);
+    } catch (error) {
+        next(error);
+    }
 });
 
-// PUT – Update a todo
-app.put('/todos/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const todo = todos.find(todo => todo.id === id);
-
-  if (!todo) {
-    return res.status(404).json({ error: 'Todo not found' });
-  }
-
-  const { task, completed } = req.body;
-
-  if (task !== undefined) {
-    if (typeof task !== 'string' || !task.trim()) {
-      return res.status(400).json({
-        error: 'Task must be a non-empty string'
-      });
-    }
-
-    todo.task = task.trim();
-  }
-
-  if (completed !== undefined) {
-    if (typeof completed !== 'boolean') {
-      return res.status(400).json({
-        error: 'Completed must be true or false'
-      });
-    }
-
-    todo.completed = completed;
-  }
-
-  res.status(200).json(todo);
-});
 
 // DELETE – Remove a todo
 app.delete('/todos/:id', (req, res) => {
@@ -108,9 +83,17 @@ app.delete('/todos/:id', (req, res) => {
 });
 
 // Error handler
+
 app.use((err, req, res, next) => {
-  res.status(500).json({ error: 'Server error!' });
+    console.error('Global Error Handler:', err.message);
+
+    res.status(500).json({
+        success: false,
+        message: 'Internal Server Error',
+        error: err.message
+    });
 });
+
 
 const PORT = process.env.PORT || 3002;
 
